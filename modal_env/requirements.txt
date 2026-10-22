@@ -1,0 +1,10 @@
+caveclient
+dandi
+pynwb
+h5py
+fsspec
+h5py
+pandas
+numpy
+python-dotenv
+modal
