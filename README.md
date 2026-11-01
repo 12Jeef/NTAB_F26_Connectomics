@@ -22,8 +22,8 @@ Get a CAVE API token:
 ## Downloading MICrONS
 
 ```bash
-python scripts/00_inspect_tables.py      # pins the version, checks table names
-python scripts/01_download_microns.py    # downloads into data/raw/
+python scripts/inspect_tables.py      # pins the version, checks table names
+python scripts/download_microns.py    # downloads into data/raw/
 ```
 
 The first run pins the latest materialization version to `config/pinned_version.txt`.
@@ -43,7 +43,7 @@ config/            pinned materialization version
 data/raw/          downloaded tables (gitignored)
 data/processed/    derived datasets (gitignored)
 notebooks/         exploration
-scripts/           numbered pipeline steps
+scripts/           pipeline steps
 src/microns/       shared code (config, CAVE client)
 ```
 

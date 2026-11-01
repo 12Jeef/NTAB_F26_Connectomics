@@ -32,7 +32,7 @@ def download_coregistration(client) -> pd.DataFrame:
         print(f"  {table}: {len(df):,} rows")
 
     if not frames:
-        raise RuntimeError("No coregistration tables found; run scripts/00_inspect_tables.py")
+        raise RuntimeError("No coregistration tables found; run scripts/inspect_tables.py")
 
     coreg = pd.concat(frames, ignore_index=True)
     coreg = coreg[coreg["pt_root_id"] != 0]

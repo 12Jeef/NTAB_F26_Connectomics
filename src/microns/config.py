@@ -8,7 +8,7 @@ PINNED_VERSION_FILE = PROJECT_ROOT / "config" / "pinned_version.txt"
 DATASTACK = "minnie65_public"
 
 # Table names in the public minnie65 datastack. Names change between releases;
-# `scripts/00_inspect_tables.py` lists what exists at the pinned version.
+# `scripts/inspect_tables.py` lists what exists at the pinned version.
 SYNAPSE_TABLE = "synapses_pni_2"
 NUCLEUS_TABLE = "nucleus_detection_v0"
 PROOFREADING_TABLE = "proofreading_status_and_strategy"
