@@ -24,6 +24,10 @@ Get a CAVE API token:
 ```bash
 python scripts/inspect_tables.py      # pins the version, checks table names
 python scripts/download_microns.py    # downloads into data/raw/
+python scripts/build_anatomical_graph.py              # nodes + proofread synapse edges
+python scripts/download_calcium_traces.py             # in-vivo fluorescence, one scan at a time
+python scripts/build_functional_knn.py                # kNN from calcium traces (Ding fallback)
+python scripts/visualize_functional_knn.py            # draw the functional graph
 ```
 
 The first run pins the latest materialization version to `config/pinned_version.txt`.
@@ -44,6 +48,13 @@ data/raw/          downloaded tables (gitignored)
 data/processed/    derived datasets (gitignored)
 notebooks/         exploration
 scripts/           pipeline steps
+  inspect_tables.py
+  download_microns.py
+  build_anatomical_graph.py              synapse target graph
+  download_calcium_traces.py             DANDI fluorescence, one scan per batch
+  build_functional_knn.py                kNN from calcium traces (Ding fallback)
+  build_functional_knn_digital_twin.py   kNN from digital-twin predictions
+  visualize_functional_knn.py
 src/microns/       shared code (config, CAVE client)
 ```
 

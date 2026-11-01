@@ -3,6 +3,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_RAW = PROJECT_ROOT / "data" / "raw"
 DATA_PROCESSED = PROJECT_ROOT / "data" / "processed"
+DATA_CALCIUM = DATA_RAW / "calcium"
+SCANUNIT_PATH = DATA_CALCIUM / "ScanUnit.pkl"
 PINNED_VERSION_FILE = PROJECT_ROOT / "config" / "pinned_version.txt"
 
 DATASTACK = "minnie65_public"

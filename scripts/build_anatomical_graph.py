@@ -1,8 +1,10 @@
-"""Collapse coregistered neurons into graph nodes and attach proofread synapses.
+"""Build the anatomical target graph: one node per EM neuron, synapse edges.
+
+An edge is a proofread synapse. Activity similarity is not used.
 
 Outputs (data/processed/):
   nodes.parquet   one row per EM neuron, with its chosen calcium unit
-  edges.parquet   directed proofread synapse edges between those neurons
+  edges.parquet   directed proofread synapse pairs between those neurons
 """
 
 import pandas as pd

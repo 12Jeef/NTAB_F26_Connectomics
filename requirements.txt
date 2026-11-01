@@ -6,3 +6,6 @@ pyarrow
 tqdm
 jupyter
 datajoint
+dandi
+h5py
+remfile

@@ -1,17 +1,11 @@
-"""Build the functional input graph in batches.
+"""Build the functional kNN graph from calcium traces, or Ding means as fallback.
 
-The first batch uses trial-averaged in vivo responses from Ding et al. 2025
-(node_data_v1.pkl, 280 MB). Each neuron has a 120-sample mean response to
-naturalistic movies. The graph connects each neuron to its K nearest neighbors
-by correlation of those vectors. Synapses are not edges.
+Prefer DANDI fluorescence batches in data/raw/calcium/. If those are missing,
+use Ding et al. trial-averaged movie responses. Synapses are not edges.
 
-This is the signal-correlation graph. The residual (noise-correlation) graph
-still needs per-repeat traces from microns_phase3_nda, which can be added as
-later batches without changing the kNN step.
-
-Outputs (data/processed/):
-  functional_responses.npz   activity vectors for this batch
-  functional_edges.parquet   directed k-nearest-neighbor edges
+    python scripts/download_calcium_traces.py   # fetch traces, then this graph
+    python scripts/build_functional_knn.py      # rebuild from whatever is on disk
+    python scripts/build_functional_knn.py --source ding
 """
 
 import argparse
@@ -21,6 +15,7 @@ import pandas as pd
 
 from microns import config
 from microns.graph import knn_edges
+from microns.traces import load_batches
 
 K = 15
 DING_NODES = config.DATA_RAW / "node_data_v1.pkl"
@@ -62,38 +57,55 @@ def load_ding_batch(nodes: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, pd.Dat
     return vectors, ids, matched.drop(columns=["in_vivo_mean_resp"])
 
 
+def write_graph(vectors, ids, matched, source: str, k: int) -> None:
+    edges = knn_edges(vectors, ids, k=k)
+    edges_path = config.DATA_PROCESSED / "functional_edges.parquet"
+    traces_path = config.DATA_PROCESSED / "functional_responses.npz"
+    matched_path = config.DATA_PROCESSED / "functional_batch_neurons.parquet"
+    edges.to_parquet(edges_path, index=False)
+    matched.to_parquet(matched_path, index=False)
+    np.savez_compressed(
+        traces_path,
+        pt_root_id=ids,
+        response=np.asarray(vectors, dtype=np.float32),
+        source=np.array(source),
+    )
+    print(f"Functional graph: {len(ids):,} neurons, {len(edges):,} edges, K={k}")
+    print(f"  source={source}")
+    print(f"Wrote {traces_path}")
+    print(f"Wrote {edges_path}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--k", type=int, default=K)
+    parser.add_argument("--source", choices=["auto", "calcium", "ding"], default="auto")
     args = parser.parse_args()
 
     config.DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     nodes = proofread_axon_nodes()
     print(f"{len(nodes):,} neurons with a proofread axon and a calcium unit")
 
+    have_calcium = bool(list(config.DATA_CALCIUM.glob("session*_scan*.npz")))
+    use_calcium = args.source == "calcium" or (args.source == "auto" and have_calcium)
+    if use_calcium:
+        vectors, ids, matched = load_batches()
+        print(f"Calcium traces: {len(ids):,} / {len(nodes):,} neurons")
+        write_graph(vectors, ids, matched, "dandi_000402_fluorescence", args.k)
+        return
+
     if not DING_NODES.exists():
         raise RuntimeError(
-            f"Missing {DING_NODES}. Download node_data_v1.pkl from the "
-            "MICrONS functional connectomics release."
+            "No calcium batches and no Ding table. "
+            "Run scripts/download_calcium_traces.py"
         )
 
     vectors, ids, matched = load_ding_batch(nodes)
     print(
-        f"Batch 1 (trial-averaged in vivo responses): {len(ids):,} / {len(nodes):,} neurons"
+        f"Ding in-vivo means: {len(ids):,} / {len(nodes):,} neurons, "
+        f"vector length {vectors.shape[1]}"
     )
-    print(f"  vector length {vectors.shape[1]}, scans {matched.groupby(['session','scan_idx']).ngroups}")
-
-    edges = knn_edges(vectors, ids, k=args.k)
-    edges_path = config.DATA_PROCESSED / "functional_edges.parquet"
-    traces_path = config.DATA_PROCESSED / "functional_responses.npz"
-    matched_path = config.DATA_PROCESSED / "functional_batch_neurons.parquet"
-    edges.to_parquet(edges_path, index=False)
-    matched.to_parquet(matched_path, index=False)
-    np.savez_compressed(traces_path, pt_root_id=ids, response=vectors.astype(np.float32))
-    print(f"Functional graph: {len(ids):,} neurons, {len(edges):,} edges, K={args.k}")
-    print("  Similarity is signal correlation of 120-sample mean movie responses.")
-    print(f"Wrote {traces_path}")
-    print(f"Wrote {edges_path}")
+    write_graph(vectors, ids, matched, "ding_in_vivo_mean_resp", args.k)
 
 
 if __name__ == "__main__":
