@@ -118,16 +118,18 @@ def fetch_scan_traces(session: int, scan_idx: int, units: pd.DataFrame) -> pd.Da
         return units.assign(trace=pd.Series(dtype=object))
 
     h5 = h5py.File(remfile.File(nwb_url(session, scan_idx)), "r")
-    traces = []
-    by_field = units.groupby("field", sort=True)
-    for field, grp in by_field:
+    traces = {}
+    for field, grp in units.groupby("field", sort=True):
         series = h5[f"processing/ophys/Fluorescence/RoiResponseSeries{int(field)}/data"]
-        for row in grp.itertuples(index=False):
-            traces.append(np.asarray(series[:, int(row.mask_id) - 1], dtype=np.float32))
+        cols = (grp["mask_id"].astype(int) - 1).to_numpy()
+        uniq, inverse = np.unique(cols, return_inverse=True)
+        block = np.asarray(series[:, uniq.tolist()], dtype=np.float32)
+        for i, idx in enumerate(grp.index):
+            traces[idx] = block[:, inverse[i]]
     h5.close()
 
     out = units.copy()
-    out["trace"] = traces
+    out["trace"] = [traces[i] for i in out.index]
     return out
 
 
@@ -157,6 +159,7 @@ def save_batch(session: int, scan_idx: int, units: pd.DataFrame) -> Path:
         unit_id=units["unit_id"].to_numpy(),
         field=units["field"].to_numpy(),
         mask_id=units["mask_id"].to_numpy(),
+        preference=units["preference"].to_numpy(),
         response=stacked.astype(np.float32),
         source=np.array("dandi_000402_fluorescence"),
     )
@@ -180,12 +183,16 @@ def load_batches() -> tuple[np.ndarray, np.ndarray, pd.DataFrame]:
                 "session": bundle["session"],
                 "scan_idx": bundle["scan_idx"],
                 "unit_id": bundle["unit_id"],
+                "preference": bundle["preference"] if "preference" in bundle.files else 0,
             }
         )
         frames.append(frame)
         vectors.append(bundle["response"])
     neurons = pd.concat(frames, ignore_index=True)
     stacked = np.vstack(vectors)
+    order = np.argsort(neurons["preference"].to_numpy(), kind="mergesort")
+    neurons = neurons.iloc[order].reset_index(drop=True)
+    stacked = stacked[order]
     keep = ~neurons.duplicated("pt_root_id", keep="first")
     neurons = neurons.loc[keep].reset_index(drop=True)
     stacked = stacked[keep.to_numpy()]

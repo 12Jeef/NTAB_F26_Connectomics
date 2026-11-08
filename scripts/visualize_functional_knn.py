@@ -1,9 +1,7 @@
 """Draw the current functional kNN graph and write a results table.
 
-Uses the digital-twin batch already on disk:
-  1,212 neurons, K=15, 18,180 directed edges.
 Layout of the full graph is the first two principal components of the
-response vectors, so nearby nodes have similar movie responses.
+activity vectors, so nearby nodes have similar responses.
 """
 
 from __future__ import annotations
@@ -39,6 +37,11 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray, np.nda
     bundle = np.load(config.DATA_PROCESSED / "functional_responses.npz", allow_pickle=True)
     ids = bundle["pt_root_id"]
     responses = bundle["response"].astype(np.float64)
+    source = (
+        str(bundle["source"])
+        if "source" in bundle.files
+        else "activity"
+    )
     ding_path = config.DATA_RAW / "node_data_v1.pkl"
     if ding_path.exists():
         ding = pd.read_pickle(ding_path).rename(columns={"scan_session": "session"})
@@ -52,7 +55,7 @@ def load() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray, np.nda
     neurons["brain_area"] = neurons.get("brain_area", pd.Series(index=neurons.index)).astype(
         "string"
     ).fillna("unknown")
-    return neurons, edges, anat, ids, responses
+    return neurons, edges, anat, ids, responses, source
 
 
 def pca_positions(responses: np.ndarray) -> np.ndarray:
@@ -92,6 +95,7 @@ def draw_full_graph(
     ids: np.ndarray,
     xy: np.ndarray,
     path: Path,
+    source: str,
 ) -> None:
     index = id_map(ids)
     area = (
@@ -119,11 +123,18 @@ def draw_full_graph(
     ax.set_xlim(-1.15, 1.15)
     ax.set_ylim(-1.15, 1.15)
     ax.axis("off")
-    ax.set_title("Functional graph  ·  1,212 neurons  ·  18,180 kNN edges", pad=18, fontsize=15)
+    n_nodes = len(ids)
+    n_edges = len(edges)
+    ax.set_title(f"Functional graph  ·  {n_nodes:,} neurons  ·  {n_edges:,} kNN edges", pad=18, fontsize=15)
+    caption = (
+        "Layout is PCA of in-vivo calcium traces. Nearby nodes have similar activity."
+        if "fluorescence" in source or "calcium" in source
+        else "Layout is PCA of activity vectors. Nearby nodes have similar activity."
+    )
     ax.text(
         0.5,
         1.015,
-        "Layout is PCA of digital-twin movie responses. Nearby nodes have similar activity.",
+        caption,
         transform=ax.transAxes,
         ha="center",
         va="bottom",
@@ -144,6 +155,7 @@ def draw_one_neuron(
     edges: pd.DataFrame,
     anat: pd.DataFrame,
     path: Path,
+    source: str,
 ) -> None:
     nbrs = edges.loc[edges["pt_root_id"] == center].sort_values("rank")
     fun_pairs = set(zip(nbrs["pt_root_id"].astype("int64"), nbrs["neighbor_pt_root_id"].astype("int64")))
@@ -189,7 +201,11 @@ def draw_one_neuron(
     fig.text(
         0.5,
         0.935,
-        f"{n} nearest neighbors by digital-twin movie response  ·  {synapse_n} also share a proofread synapse",
+        (
+            f"{n} nearest neighbors by in-vivo calcium trace  ·  {synapse_n} also share a proofread synapse"
+            if "fluorescence" in source or "calcium" in source
+            else f"{n} nearest neighbors by activity  ·  {synapse_n} also share a proofread synapse"
+        ),
         ha="center",
         fontsize=10,
         color="#5c5a56",
@@ -260,7 +276,7 @@ def main() -> None:
     tables = config.DATA_PROCESSED / "tables"
     tables.mkdir(parents=True, exist_ok=True)
 
-    neurons, edges, anat, ids, responses = load()
+    neurons, edges, anat, ids, responses, source = load()
     xy = pca_positions(responses)
     center = pick_center(edges, anat, ids)
 
@@ -268,8 +284,8 @@ def main() -> None:
     ego_path = config.DATA_PROCESSED / "one_neuron_functional.png"
     results_path = tables / "full_graph_results.csv"
 
-    draw_full_graph(neurons, edges, ids, xy, full_path)
-    draw_one_neuron(center, edges, anat, ego_path)
+    draw_full_graph(neurons, edges, ids, xy, full_path, source)
+    draw_one_neuron(center, edges, anat, ego_path, source)
     table = write_results(neurons, edges, anat, responses, results_path)
 
     print(f"Center neuron {center}")

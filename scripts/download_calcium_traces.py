@@ -74,12 +74,12 @@ def main() -> None:
             print(f"skip {session}-{scan_idx} (already have {path.name})")
             continue
         units = units_for_scan(scanunit, session, scan_idx)
-        print(f"scan {session}-{scan_idx}: {len(units)} neurons")
+        print(f"scan {session}-{scan_idx}: {len(units)} neurons", flush=True)
         if units.empty:
             continue
         fetched = fetch_scan_traces(session, scan_idx, units)
         written = save_batch(session, scan_idx, fetched)
-        print(f"  wrote {written}")
+        print(f"  wrote {written}  ({len(fetched)} traces)", flush=True)
 
     rebuild(args.k)
 
