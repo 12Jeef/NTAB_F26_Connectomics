@@ -93,6 +93,8 @@ def knn_edges(residual: np.ndarray, node_ids: np.ndarray, k: int = 15) -> pd.Dat
 
     ``residual`` is one row per neuron. An edge ``i -> j`` means ``j`` is among
     the ``k`` neurons most correlated with ``i``. The diagonal is excluded.
+    Callers that have mixed scans must use ``knn_edges_grouped`` so that
+    noise correlation is only computed among co-recorded neurons.
     """
     if k < 1:
         raise ValueError("k must be at least 1")
@@ -121,6 +123,29 @@ def knn_edges(residual: np.ndarray, node_ids: np.ndarray, k: int = 15) -> pd.Dat
                 }
             )
     return pd.DataFrame(rows)
+
+
+def knn_edges_grouped(
+    residual: np.ndarray,
+    node_ids: np.ndarray,
+    groups: np.ndarray,
+    k: int = 15,
+) -> pd.DataFrame:
+    """Within-group residual kNN. Used so G_f only links co-recorded neurons."""
+    residual = np.asarray(residual)
+    node_ids = np.asarray(node_ids)
+    groups = np.asarray(groups)
+    frames = []
+    for group in pd.unique(groups):
+        idx = np.flatnonzero(groups == group)
+        if idx.size < 2:
+            continue
+        frames.append(knn_edges(residual[idx], node_ids[idx], k=k))
+    if not frames:
+        return pd.DataFrame(
+            columns=["pt_root_id", "neighbor_pt_root_id", "similarity", "rank"]
+        )
+    return pd.concat(frames, ignore_index=True)
 
 
 def mark_connected_nodes(nodes: pd.DataFrame, edges: pd.DataFrame) -> pd.DataFrame:

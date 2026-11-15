@@ -30,6 +30,21 @@ python scripts/build_functional_knn.py                # kNN from calcium traces 
 python scripts/visualize_functional_knn.py            # draw the functional graph
 ```
 
+## Link models (branch `model-functional`)
+
+Functional kNN is the **input** graph. Proofread synapses are **labels**. Data lives locally in `data/processed/` or on Modal volume `ntab-functional`.
+
+```bash
+python scripts/pull_modal_functional.py          # optional: copy from Modal
+python scripts/verify_functional_anatomy.py      # does G_f resemble synapses?
+python scripts/train_ncn.py --epochs 15 --pairs 4096
+python scripts/train_seal.py --epochs 4 --pairs 1024
+python scripts/compare_link_models.py            # Pearson / common-neighbor vs NCN / SEAL
+```
+
+NCN is the directed architecture from the group notebook. SEAL is a 1-hop enclosing-subgraph GNN plus a common-neighbor baseline. Coordinates are not given to either model.
+
+
 The first run pins the latest materialization version to `config/pinned_version.txt`.
 Commit that file so table contents can't drift underneath the analysis. Delete it
 only if you deliberately want to move to a newer release.
@@ -55,7 +70,11 @@ scripts/           pipeline steps
   build_functional_knn.py                kNN from calcium traces (Ding fallback)
   build_functional_knn_digital_twin.py   kNN from digital-twin predictions
   visualize_functional_knn.py
-src/microns/       shared code (config, CAVE client)
+  verify_functional_anatomy.py
+  train_ncn.py
+  train_seal.py
+  compare_link_models.py
+src/microns/       shared code (config, CAVE client, NCN, SEAL)
 ```
 
 ## Roadmap

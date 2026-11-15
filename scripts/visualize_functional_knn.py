@@ -63,8 +63,30 @@ def pca_positions(responses: np.ndarray) -> np.ndarray:
     _, _, vt = np.linalg.svd(x, full_matrices=False)
     xy = x @ vt[:2].T
     xy = xy - np.median(xy, axis=0)
-    scale = np.quantile(np.abs(xy), 0.99)
+    scale = np.quantile(np.abs(xy), 0.95)
     return xy / scale
+
+
+def node_colors(neurons: pd.DataFrame, ids: np.ndarray) -> list[str]:
+    area = (
+        neurons.set_index("pt_root_id")
+        .reindex(ids)["brain_area"]
+        .fillna("unknown")
+        .astype(str)
+        .to_numpy()
+    )
+    return [AREA_COLORS.get(a, AREA_COLORS["unknown"]) for a in area]
+
+
+def rank1_segments(edges: pd.DataFrame, ids: np.ndarray, xy: np.ndarray) -> np.ndarray:
+    index = id_map(ids)
+    top = edges.loc[edges["rank"] == 1]
+    src = top["pt_root_id"].map(index)
+    dst = top["neighbor_pt_root_id"].map(index)
+    keep = src.notna() & dst.notna()
+    src = src[keep].astype(int).to_numpy()
+    dst = dst[keep].astype(int).to_numpy()
+    return np.stack([xy[src], xy[dst]], axis=1)
 
 
 def id_map(ids: np.ndarray) -> dict[int, int]:
@@ -97,55 +119,62 @@ def draw_full_graph(
     path: Path,
     source: str,
 ) -> None:
-    index = id_map(ids)
-    area = (
-        neurons.set_index("pt_root_id")
-        .reindex(ids)["brain_area"]
-        .fillna("unknown")
-        .astype(str)
-        .to_numpy()
-    )
-    colors = [AREA_COLORS.get(a, AREA_COLORS["unknown"]) for a in area]
-    src = edges["pt_root_id"].map(index)
-    dst = edges["neighbor_pt_root_id"].map(index)
-    keep = src.notna() & dst.notna()
-    src = src[keep].astype(int).to_numpy()
-    dst = dst[keep].astype(int).to_numpy()
-    segs = np.stack([xy[src], xy[dst]], axis=1)
+    colors = node_colors(neurons, ids)
+    segs = rank1_segments(edges, ids, xy)
+    calcium = "fluorescence" in source or "calcium" in source
 
-    fig, ax = plt.subplots(figsize=(11.2, 10.4), facecolor=BG)
-    ax.set_facecolor(BG)
-    ax.add_collection(
-        LineCollection(segs, colors="#8aa0a8", linewidths=0.18, alpha=0.07, zorder=1)
-    )
-    ax.scatter(xy[:, 0], xy[:, 1], s=22, c=colors, linewidths=0, zorder=2, alpha=0.92)
-    ax.set_aspect("equal")
-    ax.set_xlim(-1.15, 1.15)
-    ax.set_ylim(-1.15, 1.15)
-    ax.axis("off")
-    n_nodes = len(ids)
-    n_edges = len(edges)
-    ax.set_title(f"Functional graph  ·  {n_nodes:,} neurons  ·  {n_edges:,} kNN edges", pad=18, fontsize=15)
-    caption = (
-        "Layout is PCA of in-vivo calcium traces. Nearby nodes have similar activity."
-        if "fluorescence" in source or "calcium" in source
-        else "Layout is PCA of activity vectors. Nearby nodes have similar activity."
-    )
-    ax.text(
+    fig, axes = plt.subplots(1, 2, figsize=(13.6, 6.6), facecolor=BG)
+    for ax in axes:
+        ax.set_facecolor(BG)
+        ax.set_aspect("equal")
+        ax.axis("off")
+        ax.set_xlim(-1.2, 1.2)
+        ax.set_ylim(-1.2, 1.2)
+
+    axes[0].scatter(xy[:, 0], xy[:, 1], s=16, c=colors, linewidths=0, zorder=2, alpha=0.9)
+    axes[0].set_title("Activity space", fontsize=13, pad=10)
+    axes[0].text(
         0.5,
-        1.015,
-        caption,
-        transform=ax.transAxes,
+        -0.04,
+        "PCA of calcium traces. Nearby = similar activity. No edges drawn.",
+        transform=axes[0].transAxes,
         ha="center",
-        va="bottom",
-        fontsize=10,
+        fontsize=9,
         color="#5c5a56",
+    )
+
+    axes[1].add_collection(
+        LineCollection(segs, colors="#9aa8b0", linewidths=0.45, alpha=0.22, zorder=1)
+    )
+    axes[1].scatter(xy[:, 0], xy[:, 1], s=16, c=colors, linewidths=0, zorder=2, alpha=0.9)
+    axes[1].set_title("Strongest neighbor only", fontsize=13, pad=10)
+    axes[1].text(
+        0.5,
+        -0.04,
+        "Same layout, one edge per neuron (rank-1). K=15 edges are omitted.",
+        transform=axes[1].transAxes,
+        ha="center",
+        fontsize=9,
+        color="#5c5a56",
+    )
+
+    n_nodes = len(ids)
+    kind = "in-vivo calcium" if calcium else "activity"
+    fig.suptitle(
+        f"Functional graph  ·  {n_nodes:,} neurons  ·  {kind}",
+        fontsize=15,
+        y=1.02,
     )
     handles = [
         Line2D([0], [0], marker="o", color="none", markerfacecolor=c, markersize=8, label=name)
-        for name, c in [("V1", AREA_COLORS["V1"]), ("RL", AREA_COLORS["RL"]), ("AL", AREA_COLORS["AL"]), ("unlabeled", AREA_COLORS["unknown"])]
+        for name, c in [
+            ("V1", AREA_COLORS["V1"]),
+            ("RL", AREA_COLORS["RL"]),
+            ("AL", AREA_COLORS["AL"]),
+            ("unlabeled", AREA_COLORS["unknown"]),
+        ]
     ]
-    ax.legend(handles=handles, loc="lower left", frameon=False, fontsize=9)
+    fig.legend(handles=handles, loc="lower center", ncol=4, frameon=False, bbox_to_anchor=(0.5, -0.02))
     fig.savefig(path, dpi=170, bbox_inches="tight", facecolor=BG)
     plt.close(fig)
 

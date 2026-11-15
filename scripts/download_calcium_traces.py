@@ -81,7 +81,10 @@ def main() -> None:
         written = save_batch(session, scan_idx, fetched)
         print(f"  wrote {written}  ({len(fetched)} traces)", flush=True)
 
-    rebuild(args.k)
+    print("Raw fluorescence batches are on disk. G_f is oracle residuals:")
+    print("  python scripts/download_oracle_traces.py")
+    print("Raw-trace ablation (not G_f):")
+    print("  python scripts/build_functional_knn.py --source raw")
 
 
 if __name__ == "__main__":

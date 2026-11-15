@@ -9,3 +9,5 @@ datajoint
 dandi
 h5py
 remfile
+scikit-learn
+torch

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>How the functional graph works</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1f1c18;
+      --muted: #5c5a56;
+      --line: #d9d2c6;
+      --teal: #1d7a6d;
+      --navy: #3d5a80;
+      --coral: #c45c44;
+      --card: #fffdf8;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #2b2824;
+      color: var(--ink);
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    }
+    .deck {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .slide {
+      display: none;
+      width: min(1280px, 96vw);
+      height: min(720px, 54vw, 96vh);
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 48px 56px 40px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 18px 60px rgba(0,0,0,.35);
+    }
+    .slide.on { display: flex; flex-direction: column; }
+    .kicker {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--teal);
+      margin: 0 0 10px;
+      font-weight: 600;
+    }
+    h1 {
+      font-size: 42px;
+      line-height: 1.12;
+      margin: 0 0 14px;
+      font-weight: 600;
+    }
+    h2 {
+      font-size: 32px;
+      line-height: 1.15;
+      margin: 0 0 18px;
+      font-weight: 600;
+    }
+    p, li { font-size: 22px; line-height: 1.38; color: var(--ink); }
+    p.lead { font-size: 24px; max-width: 58ch; }
+    .muted { color: var(--muted); }
+    .row { display: grid; gap: 18px; flex: 1; }
+    .row.two { grid-template-columns: 1fr 1fr; }
+    .row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .row.stats { grid-template-columns: repeat(4, 1fr); align-content: start; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 18px 20px;
+    }
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--navy);
+    }
+    .card p, .card li { font-size: 18px; margin: 0; }
+    .num {
+      font-size: 40px;
+      font-weight: 650;
+      color: var(--teal);
+      line-height: 1;
+      margin: 0 0 8px;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+    }
+    .formula {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: #1f1c18;
+      color: #f4efe6;
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-size: 22px;
+      letter-spacing: .01em;
+    }
+    .formula span { color: #9ad7cc; }
+    ul { margin: 8px 0 0; padding-left: 1.15em; }
+    li { margin: 6px 0; }
+    .foot {
+      position: absolute;
+      left: 56px; right: 56px; bottom: 22px;
+      display: flex;
+      justify-content: space-between;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    svg.diag { width: 100%; height: 220px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 20px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .tag {
+      display: inline-block;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #e4f3ef;
+      color: var(--teal);
+      font-weight: 650;
+    }
+    .tag.coral { background: #f6e4de; color: var(--coral); }
+    .tag.navy { background: #e4ebf3; color: var(--navy); }
+    @media print {
+      body { background: white; }
+      .slide { display: flex !important; page-break-after: always; box-shadow: none; width: 11in; height: 6.2in; }
+    }
+  </style>
+</head>
+<body>
+  <div class="deck" id="deck"></div>
+  <script>
+    const slides = [];
+
+    function slide(html) {
+      slides.push(html.trim());
+    }
+
+    slide(`
+      <p class="kicker">Neurotech@Berkeley · MICrONS functional connectome</p>
+      <h1>How the functional graph works</h1>
+      <p class="lead">G<sub>f</sub> is a directed k-nearest-neighbor graph of residual calcium similarity. It is model <em>input</em>. Proofread synapses are labels, never extra edges.</p>
+      <div class="row three" style="margin-top:28px">
+        <div class="card"><h3>Source</h3><p>In-vivo calcium traces, DANDI 000402. Same cells as the EM volume after coregistration.</p></div>
+        <div class="card"><h3>Similarity ρ</h3><p>Noise correlation: Pearson of oracle-repeat residuals, within a scan only.</p></div>
+        <div class="card"><h3>Graph</h3><p>Each neuron points to its 15 most similar co-recorded neurons. K = 15.</p></div>
+      </div>
+    `);
+
+    slide(`
+      <p class="kicker">The task</p>
+      <h2>Predict one graph from another</h2>
+      <div class="row two">
+        <div class="card">
+          <h3>Input · G<sub>f</sub></h3>
+          <p>Functional graph from calcium. Residual kNN plus the traces themselves. xyz and cell type withheld.</p>
+        </div>
+        <div class="card">
+          <h3>Target · anatomy</h3>
+          <p>Directed proofread synapses. Pre axon proofread, post dendrite proofread, both coregistered.</p>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:22px">Unlike standard link prediction, no edges of the target graph are ever given as input. A pair that happens to sit in both graphs is still only a kNN edge at train time.</p>
+    `);
+
+    slide(`
+      <p class="kicker">Who is a node</p>
+      <h2>One EM neuron, one calcium unit</h2>
+      <div class="row stats">
+        <div class="card"><p class="num">1,397</p><p>nodes in G<sub>f</sub></p></div>
+        <div class="card"><p class="num">1,432</p><p>proofread-axon + imaged</p></div>
+        <div class="card"><p class="num">35</p><p>missing: scans 5-4, 5-5, 8-4 not on DANDI</p></div>
+        <div class="card"><p class="num">19</p><p>scans with traces</p></div>
+      </div>
+      <ul>
+        <li>Coregistered to a calcium unit (manual match preferred).</li>
+        <li>Proofread axon, so outgoing synapses are trusted labels.</li>
+        <li>Multiple traces for one cell collapse to the primary unit.</li>
+      </ul>
+    `);
+
+    slide(`
+      <p class="kicker">Nature 640, 435 (2025)</p>
+      <h2>Oracle clips, not the whole movie</h2>
+      <p class="lead">Six 10-second natural-movie clips, shown in the same order, ten times per scan. One minute of stimulus, ten repeats. That is the reliability set in the paper.</p>
+      <div class="row two" style="margin-top:8px">
+        <div class="card">
+          <h3>Why oracle</h3>
+          <p>Repeats let us split what is locked to the movie from trial-to-trial leftover. Full-scan Pearson is mostly shared stimulus.</p>
+        </div>
+        <div class="card">
+          <h3>What we store</h3>
+          <p>Each clip resampled to 63 bins. Ten repeats × 378 samples → residual vector of length 3,780.</p>
+        </div>
+      </div>
+    `);
+
+    slide(`
+      <p class="kicker">Signal and noise split</p>
+      <h2>Residual is still calcium</h2>
+      <p class="formula">residual = <span>each oracle repeat</span> − <span>mean over the 10 repeats</span></p>
+      <div class="row two" style="margin-top:18px">
+        <div class="card">
+          <h3>Signal</h3>
+          <p>Trial average. Tuning: cells that like the same movie look similar even if they were recorded on different days.</p>
+        </div>
+        <div class="card">
+          <h3>Noise / residual</h3>
+          <p>Leftover after subtracting that average. Shared fluctuations among cells recorded together. This is ρ for G<sub>f</sub>.</p>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:16px">DANDI ships fluorescence, not CaImAn spikes. Residuals are computed on an AR1 inference of those oracle windows (GCaMP6s).</p>
+    `);
+
+    slide(`
+      <p class="kicker">Similarity</p>
+      <h2>Noise correlation is mean-centered cosine</h2>
+      <p class="lead">For two residual vectors, subtract each mean, L2-normalize, take the dot product. That Pearson number is the edge weight.</p>
+      <div class="row two">
+        <div class="card">
+          <h3>Defined</h3>
+          <p>Only among neurons in the same session and scan. They were imaged simultaneously.</p>
+        </div>
+        <div class="card">
+          <h3>Undefined</h3>
+          <p>Across scans. Those cells watched movies on different days. Residual correlation there is not a biological noise correlation.</p>
+        </div>
+      </div>
+    `);
+
+    slide(`
+      <p class="kicker">Building G<sub>f</sub></p>
+      <h2>Directed 15-nearest neighbors, per scan</h2>
+      <svg class="diag" viewBox="0 0 1100 220" aria-hidden="true">
+        <rect x="20" y="30" width="320" height="160" rx="12" fill="#fffdf8" stroke="#d9d2c6"/>
+        <text x="180" y="58" text-anchor="middle" font-size="16" fill="#3d5a80" font-family="Avenir Next, sans-serif">SCAN A</text>
+        <circle cx="90" cy="120" r="14" fill="#1d7a6d"/>
+        <circle cx="160" cy="90" r="14" fill="#1d7a6d"/>
+        <circle cx="230" cy="130" r="14" fill="#1d7a6d"/>
+        <circle cx="280" cy="95" r="14" fill="#1d7a6d"/>
+        <line x1="90" y1="120" x2="160" y2="90" stroke="#1d7a6d" stroke-width="2"/>
+        <line x1="90" y1="120" x2="230" y2="130" stroke="#1d7a6d" stroke-width="2"/>
+        <line x1="160" y1="90" x2="280" y2="95" stroke="#1d7a6d" stroke-width="2"/>
+        <rect x="390" y="30" width="320" height="160" rx="12" fill="#fffdf8" stroke="#d9d2c6"/>
+        <text x="550" y="58" text-anchor="middle" font-size="16" fill="#3d5a80" font-family="Avenir Next, sans-serif">SCAN B</text>
+        <circle cx="470" cy="110" r="14" fill="#3d5a80"/>
+        <circle cx="540" cy="150" r="14" fill="#3d5a80"/>
+        <circle cx="610" cy="100" r="14" fill="#3d5a80"/>
+        <line x1="470" y1="110" x2="540" y2="150" stroke="#3d5a80" stroke-width="2"/>
+        <line x1="540" y1="150" x2="610" y2="100" stroke="#3d5a80" stroke-width="2"/>
+        <line x1="340" y1="110" x2="390" y2="110" stroke="#c45c44" stroke-width="2" stroke-dasharray="7 6"/>
+        <text x="365" y="98" text-anchor="middle" font-size="13" fill="#c45c44" font-family="Avenir Next, sans-serif">no edge</text>
+        <rect x="760" y="30" width="320" height="160" rx="12" fill="#fffdf8" stroke="#d9d2c6"/>
+        <text x="920" y="70" text-anchor="middle" font-size="18" fill="#1f1c18" font-family="Iowan Old Style, serif">i → j  if j is among</text>
+        <text x="920" y="102" text-anchor="middle" font-size="18" fill="#1f1c18" font-family="Iowan Old Style, serif">the 15 highest ρ in i’s scan</text>
+        <text x="920" y="148" text-anchor="middle" font-size="15" fill="#5c5a56" font-family="Avenir Next, sans-serif">diagonal excluded · directed</text>
+      </svg>
+      <p>If a scan has fewer than 16 cells, K is n − 1. The union of these blocks is G<sub>f</sub>: 20,916 edges, all within-scan.</p>
+    `);
+
+    slide(`
+      <p class="kicker">What changed</p>
+      <h2>The old graph was stimulus correlation</h2>
+      <table>
+        <tr><th></th><th>Before</th><th>Now · paper G<sub>f</sub></th></tr>
+        <tr><td>Traces</td><td>Full movie, downsampled to 2,500 bins</td><td>Oracle windows of the same calcium</td></tr>
+        <tr><td>ρ</td><td>Raw Pearson (movie + noise)</td><td>Residual / noise correlation</td></tr>
+        <tr><td>Neighbors</td><td>Any of the 1,397 cells</td><td>Same scan only</td></tr>
+        <tr><td>Same-scan kNN</td><td>83% (shared movie)</td><td>100% by construction</td></tr>
+        <tr><td>Synapse overlap</td><td>1,005 edges · 4.8%</td><td>877 edges · 4.2%</td></tr>
+      </table>
+      <p class="muted" style="margin-top:16px">Overlap fell slightly because most synapses are cross-scan and can no longer be kNN edges. That is a correction.</p>
+    `);
+
+    slide(`
+      <p class="kicker">Numbers to report</p>
+      <h2>A sparse hint, not a copy of anatomy</h2>
+      <div class="row stats">
+        <div class="card"><p class="num">20,916</p><p>directed kNN edges</p></div>
+        <div class="card"><p class="num">877</p><p>also a proofread synapse</p></div>
+        <div class="card"><p class="num">4.2%</p><p>of G<sub>f</sub> edges are synapses</p></div>
+        <div class="card"><p class="num">1.7%</p><p>of synapses sit in G<sub>f</sub></p></div>
+      </div>
+      <p>Same-scan synapse rate is 2.7%. Random kNN would hit about that. 4.2% is ~1.6× chance. Of 3,475 same-scan synapses, 25% land in the top-15 neighborhood.</p>
+    `);
+
+    slide(`
+      <p class="kicker">Does ρ recover synapses?</p>
+      <h2>Residual beats chance, and beats signal</h2>
+      <div class="row three">
+        <div class="card"><p class="num">0.596</p><p>AUROC · noise / residual</p></div>
+        <div class="card"><p class="num">0.577</p><p>AUROC · signal / trial average</p></div>
+        <div class="card"><p class="num">0.546</p><p>AUROC · kNN membership</p></div>
+      </div>
+      <p style="margin-top:18px">Scored on 3,475 same-scan synapses vs 128,468 same-scan pairs. Chance is 0.50. This is the Aim 1 bar: a model has to beat signal correlation, not merely beat a coin flip.</p>
+      <p class="muted">Figure: <code>data/processed/similarity_roc.png</code></p>
+    `);
+
+    slide(`
+      <p class="kicker">What the model sees</p>
+      <h2>G<sub>f</sub> in, synapses out</h2>
+      <div class="row two">
+        <div class="card">
+          <h3>Given to NCN / SEAL</h3>
+          <ul>
+            <li>Directed residual kNN</li>
+            <li>Residual trace per node</li>
+            <li>No xyz, no cell type</li>
+            <li>No anatomical edges added</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Asked to predict</h3>
+          <ul>
+            <li>Is there a synapse i → j?</li>
+            <li>Trusted pairs only</li>
+            <li>Cross-scan pairs have node features, not G<sub>f</sub> edges</li>
+          </ul>
+        </div>
+      </div>
+      <p class="muted" style="margin-top:16px">93% of anatomical pairs among these cells are cross-scan. Message passing cannot jump scans; those predictions ride on the traces.</p>
+    `);
+
+    slide(`
+      <p class="kicker">Status</p>
+      <h2>Graphs are paper-aligned. Aim 1 is not done.</h2>
+      <div class="row two">
+        <div class="card">
+          <h3><span class="tag">Aligned</span></h3>
+          <ul>
+            <li>Coregistered, proofread-axon nodes</li>
+            <li>Oracle residual G<sub>f</sub></li>
+            <li>Directed proofread synapse labels</li>
+            <li>Pinned mat 1926</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="tag coral">Still open</span></h3>
+          <ul>
+            <li>CaImAn deconvolution</li>
+            <li>Distance-matched negatives</li>
+            <li>Node-disjoint splits</li>
+            <li>Two-stream encoder, GAE baseline</li>
+          </ul>
+        </div>
+      </div>
+      <p style="margin-top:18px">The functional graph is ready to use as model input. Low overlap with anatomy is expected. That is the prediction problem.</p>
+    `);
+
+    const deck = document.getElementById("deck");
+    let i = 0;
+    function render() {
+      deck.innerHTML = "";
+      const el = document.createElement("section");
+      el.className = "slide on";
+      el.innerHTML = slides[i] + `<div class="foot"><span>Functional graph G<sub>f</sub></span><span>${i + 1} / ${slides.length}</span></div>`;
+      deck.appendChild(el);
+    }
+    window.addEventListener("keydown", (e) => {
+      if (["ArrowRight", " ", "PageDown"].includes(e.key)) { i = Math.min(slides.length - 1, i + 1); render(); e.preventDefault(); }
+      if (["ArrowLeft", "PageUp"].includes(e.key)) { i = Math.max(0, i - 1); render(); e.preventDefault(); }
+      if (e.key === "Home") { i = 0; render(); }
+      if (e.key === "End") { i = slides.length - 1; render(); }
+    });
+    let x0 = null;
+    window.addEventListener("pointerdown", (e) => { x0 = e.clientX; });
+    window.addEventListener("pointerup", (e) => {
+      if (x0 == null) return;
+      const dx = e.clientX - x0;
+      if (dx < -40) i = Math.min(slides.length - 1, i + 1);
+      if (dx > 40) i = Math.max(0, i - 1);
+      render();
+      x0 = null;
+    });
+    render();
+  </script>
+</body>
+</html>

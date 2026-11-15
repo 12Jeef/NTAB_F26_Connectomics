@@ -2,8 +2,8 @@
 
 Traces come from DANDI 000402 NWB files (the published form of the NDA
 fluorescence). ``ScanUnit.pkl`` maps ``(session, scan_idx, unit_id)`` to
-``(field, mask_id)`` inside each file. Residual / oracle-repeat correlation
-can replace the full-trace vector later without changing the kNN step.
+``(field, mask_id)`` inside each file. The functional graph G_f is not built
+from these full traces: see ``microns.oracle`` for oracle-repeat residuals.
 """
 
 from __future__ import annotations
