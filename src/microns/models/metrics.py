@@ -23,9 +23,9 @@ def summarize(y_true: np.ndarray, scores: np.ndarray, threshold: float = 0.5) ->
         "prevalence": float(y_true.mean()) if len(y_true) else 0.0,
         "ap": float(average_precision_score(y_true, scores)) if y_true.min() != y_true.max() else float("nan"),
         "auroc": float(roc_auc_score(y_true, scores)) if y_true.min() != y_true.max() else float("nan"),
-        "precision": float(precision_score(y_true, pred, zero_division=0)),
-        "recall": float(recall_score(y_true, pred, zero_division=0)),
-        "f1": float(f1_score(y_true, pred, zero_division=0)),
-        "balanced_accuracy": float(balanced_accuracy_score(y_true, pred)),
+        "precision": float(precision_score(y_true, pred, zero_division=0)) if y_true.min() != y_true.max() else float("nan"),
+        "recall": float(recall_score(y_true, pred, zero_division=0)) if y_true.min() != y_true.max() else float("nan"),
+        "f1": float(f1_score(y_true, pred, zero_division=0)) if y_true.min() != y_true.max() else float("nan"),
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, pred)) if y_true.min() != y_true.max() else float("nan"),
     }
     return out

@@ -10,3 +10,4 @@ data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 results/model_functional/*.pt
+results/ncn_baseline/*.pt
